@@ -1,0 +1,77 @@
+name: Build Multiplatform
+
+on:
+  push:
+    branches: [ main, master ]
+  workflow_dispatch:
+
+jobs:
+  android-apk:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+      - uses: gradle/actions/setup-gradle@v4
+      - run: chmod +x ./gradlew
+      - run: ./gradlew :app:assembleDebug
+      - uses: actions/upload-artifact@v4
+        with:
+          name: MyComposeMultiplatform-android-debug
+          path: app/build/outputs/apk/debug/*.apk
+
+  desktop-jar:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+      - uses: gradle/actions/setup-gradle@v4
+      - run: chmod +x ./gradlew
+      # fat jar：任何装了 JRE 17+ 的机器 java -jar 直接跑。
+      # 要 deb/msi/dmg 原生包就把任务换成 :desktop:packageDistributionForCurrentOS
+      - run: ./gradlew :desktop:packageUberJarForCurrentOS
+      - uses: actions/upload-artifact@v4
+        with:
+          name: MyComposeMultiplatform-desktop
+          path: |
+            desktop/build/compose/binaries/main/**/*.jar
+            desktop/build/compose/jars/*.jar
+
+  web:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+      - uses: gradle/actions/setup-gradle@v4
+      - run: chmod +x ./gradlew
+      # wasm 构建需要的 Node 由 Kotlin 插件自动下载，无需预装
+      - run: ./gradlew :composeApp:wasmJsBrowserDistribution
+      - uses: actions/upload-artifact@v4
+        with:
+          name: MyComposeMultiplatform-web
+          path: composeApp/build/dist/wasmJs/productionExecutable/**
+
+  # iOS 需要 macos runner；v1 未声明 iOS target，在 composeApp 的 kotlin {}
+  # 里加上 iosArm64()/iosSimulatorArm64() target 后取消注释：
+  # ios-simulator:
+  #   runs-on: macos-latest
+  #   steps:
+  #     - uses: actions/checkout@v4
+  #     - uses: actions/setup-java@v4
+  #       with:
+  #         distribution: 'temurin'
+  #         java-version: '17'
+  #     - uses: gradle/actions/setup-gradle@v4
+  #     - run: ./gradlew :composeApp:iosSimulatorArm64Binaries
+  #     - uses: actions/upload-artifact@v4
+  #       with:
+  #         name: MyComposeMultiplatform-ios-sim
+  #         path: composeApp/build/bin/iosSimulatorArm64/**
